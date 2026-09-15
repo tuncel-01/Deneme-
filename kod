@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CFD Sınır Tabakası & Y+ Hesaplayıcı</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --accent: #38bdf8;
+    --accent-dim: rgba(56, 189, 248, .12);
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --border: #334155;
+    --warn: #fbbf24;
+    --ok: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #17233d 0%, var(--bg) 60%);
+    color: var(--text);
+    margin: 0;
+    padding: 28px 20px 60px;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .container {
+    max-width: 1040px;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    align-content: start;
+  }
+  .full-width { grid-column: 1 / -1; }
+
+  header h1 {
+    font-size: 1.5rem;
+    margin: 0 0 6px;
+    letter-spacing: -.01em;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: .88rem;
+    line-height: 1.5;
+  }
+
+  .card {
+    background: var(--card);
+    padding: 20px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 30px -20px #000;
+  }
+  .card h2 {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--muted);
+    margin: 0 0 16px;
+    font-weight: 700;
+  }
+
+  label {
+    display: block;
+    font-size: .78rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input, select {
+    width: 100%;
+    padding: 10px 12px;
+    background: #0b1220;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    color: var(--text);
+    font-size: .92rem;
+    font-family: inherit;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .res {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--border);
+    font-size: .875rem;
+  }
+  .res:last-child { border-bottom: none; }
+  .res .k { color: var(--muted); }
+  .res .v {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .highlight {
+    background: linear-gradient(160deg, rgba(56,189,248,.14), rgba(56,189,248,.03));
+    border: 1px solid rgba(56,189,248,.28);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .hl-label {
+    font-size: .74rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 6px;
+  }
+  .big {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 6px 13px;
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 600;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(56,189,248,.3);
+    margin-bottom: 10px;
+  }
+  .pill.warn { background: rgba(251,191,36,.12); color: var(--warn); border-color: rgba(251,191,36,.3); }
+  .pill.ok   { background: rgba(74,222,128,.12); color: var(--ok);   border-color: rgba(74,222,128,.3); }
+
+  .note {
+    font-size: .8rem;
+    color: var(--muted);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .85rem;
+  }
+  th, td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  td:last-child, th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.active td { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+
+  #plot {
+    width: 100%;
+    height: 300px;
+    display: block;
+    border-radius: 10px;
+  }
+
+  @media (max-width: 780px) {
+    .container { grid-template-columns: 1fr; }
+    .full-width { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="full-width">
+    <h1>CFD Sınır Tabakası &amp; Y+ Hesaplayıcı</h1>
+    <p>Düz plaka (Blasius / 1/7 kuvvet yasası) yaklaşımıyla sürtünme hızı, ilk hücre yüksekliği,
+       sınır tabakası kalınlığı ve prizmatik katman dağılımı hesabı. Tüm birimler SI'dır.</p>
+  </header>
+
+  <!-- 1 · Akışkan -->
+  <div class="card">
+    <h2>1 · Akışkan ve Referans Koşullar</h2>
+
+    <div class="field">
+      <label for="fluid">Hazır akışkan</label>
+      <select id="fluid">
+        <option value="air15">Hava (15 °C)</option>
+        <option value="air20">Hava (20 °C)</option>
+        <option value="air40">Hava (40 °C)</option>
+        <option value="water15">Su (15 °C)</option>
+        <option value="water20">Su (20 °C)</option>
+        <option value="custom">Özel</option>
+      </select>
+    </div>
+
+    <div class="grid2">
+      <div class="field">
+        <label for="rho">Yoğunluk ρ (kg/m³)</label>
+        <input id="rho" type="number" step="any" value="1.225">
+      </div>
+      <div class="field">
+        <label for="mu">Dinamik viskozite μ (Pa·s)</label>
+        <input id="mu" type="number" step="any" value="1.789e-5">
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="field">
+        <label for="U">Serbest akış hızı U (m/s)</label>
+        <input id="U" type="number" step="any" value="20">
+      </div>
+      <div class="field">
+        <label for="L">İncelenen konum L (m)</label>
+        <input id="L" type="number" step="any" value="1">
+      </div>
+    </div>
+
+    <div class="res">
+      <span class="k">Kinematik viskozite ν</span>
+      <span class="v" id="nuOut">—</span>
+    </div>
+  </div>
+
+  <!-- 2 · Hedefler -->
+  <div class="card">
+    <h2>2 · Y+ Hedefi ve Ağ Parametreleri</h2>
+
+    <div class="grid2">
+      <div class="field">
+        <label for="ypTarget">Hedef y+</label>
+        <input id="ypTarget" type="number" step="any" value="1">
+      </div>
+      <div class="field">
+        <label for="growth">Katman büyüme oranı r</label>
+        <input id="growth" type="number" step="any" value="1.2">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="dyInput">Mevcut ilk hücre yüksekliği Δy (m) — ters kontrol</label>
+      <input id="dyInput" type="number" step="any" value="2e-5">
+    </div>
+
+    <div class="pill" id="statusPill">—</div>
+    <p class="note" id="statusNote"></p>
+  </div>
+
+  <!-- 3 · Sınır tabakası sonuçları -->
+  <div class="card">
+    <h2>3 · Sınır Tabakası Sonuçları</h2>
+    <div class="res"><span class="k">Reynolds sayısı Re<sub>L</sub></span><span class="v" id="reOut">—</span></div>
+    <div class="res"><span class="k">Akış rejimi</span><span class="v" id="regimeOut">—</span></div>
+    <div class="res"><span class="k">Geçiş konumu x<sub>tr</sub></span><span class="v" id="xtrOut">—</span></div>
+    <div class="res"><span class="k">Sınır tabakası kalınlığı δ</span><span class="v" id="deltaOut">—</span></div>
+    <div class="res"><span class="k">Yer değiştirme kalınlığı δ*</span><span class="v" id="dstarOut">—</span></div>
+    <div class="res"><span class="k">Momentum kalınlığı θ</span><span class="v" id="thetaOut">—</span></div>
+    <div class="res"><span class="k">Şekil faktörü H = δ*/θ</span><span class="v" id="hOut">—</span></div>
+    <div class="res"><span class="k">Lokal sürtünme katsayısı C<sub>f</sub></span><span class="v" id="cflOut">—</span></div>
+    <div class="res"><span class="k">Ortalama sürtünme katsayısı C̄<sub>f</sub></span><span class="v" id="cfaOut">—</span></div>
+    <div class="res"><span class="k">Duvar kayma gerilmesi τ<sub>w</sub></span><span class="v" id="tauOut">—</span></div>
+    <div class="res"><span class="k">Sürtünme hızı u<sub>τ</sub></span><span class="v" id="utauOut">—</span></div>
+  </div>
+
+  <!-- 4 · İlk hücre & prizma -->
+  <div class="card">
+    <h2>4 · İlk Hücre ve Prizmatik Katman</h2>
+
+    <div class="highlight">
+      <div class="hl-label">Hedef y+ = <span id="ypOut">1</span> için ilk hücre yüksekliği</div>
+      <div class="big" id="dyOut">—</div>
+    </div>
+
+    <div class="res"><span class="k">Girilen Δy ile oluşan y+</span><span class="v" id="ypFromDy">—</span></div>
+    <div class="res"><span class="k">δ'yı kapsayan katman sayısı</span><span class="v" id="nLayersOut">—</span></div>
+    <div class="res"><span class="k">Toplam prizma kalınlığı</span><span class="v" id="totOut">—</span></div>
+    <div class="res"><span class="k">Son katman yüksekliği</span><span class="v" id="lastOut">—</span></div>
+    <div class="res"><span class="k">δ kapsama oranı</span><span class="v" id="coverOut">—</span></div>
+  </div>
+
+  <!-- 5 · Grafik -->
+  <div class="card full-width">
+    <h2>5 · Sınır Tabakası Gelişimi</h2>
+    <canvas id="plot"></canvas>
+  </div>
+
+  <!-- 6 · y+ tablosu -->
+  <div class="card full-width">
+    <h2>6 · y+ → İlk Hücre Yüksekliği Dönüşüm Tablosu</h2>
+    <table>
+      <thead>
+        <tr><th>Hedef y+</th><th>İlk hücre yüksekliği Δy</th><th>Tipik kullanım</th></tr>
+      </thead>
+      <tbody id="ypTable"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ */
+/*  Yardımcılar                                                        */
+/* ------------------------------------------------------------------ */
+const $ = id => document.getElementById(id);
+
+function fmtNum(x, sig = 4) {
+  if (!isFinite(x)) return "—";
+  if (x === 0) return "0";
+  const a = Math.abs(x);
+  if (a < 1e-3 || a >= 1e5) return x.toExponential(3);
+  return String(Number(x.toPrecision(sig)));
+}
+
+function fmtLen(m) {
+  if (!isFinite(m)) return "—";
+  const a = Math.abs(m);
+  if (a < 1e-3) return (m * 1e6).toPrecision(3) + " µm";
+  if (a < 1)    return (m * 1e3).toPrecision(3) + " mm";
+  return m.toPrecision(4) + " m";
+}
+
+/* ------------------------------------------------------------------ */
+/*  Akışkan veritabanı                                                 */
+/* ------------------------------------------------------------------ */
+const FLUIDS = {
+  air15:   { rho: 1.225, mu: 1.789e-5 },
+  air20:   { rho: 1.204, mu: 1.825e-5 },
+  air40:   { rho: 1.127, mu: 1.918e-5 },
+  water15: { rho: 999.1, mu: 1.138e-3 },
+  water20: { rho: 998.2, mu: 1.002e-3 },
+  custom:  null
+};
+
+const RE_CRIT = 5e5;   // düz plaka kritik Reynolds sayısı
+
+/* ------------------------------------------------------------------ */
+/*  DOM referansları                                                   */
+/* ------------------------------------------------------------------ */
+const fluidSel = $("fluid");
+const rhoEl    = $("rho");
+const muEl     = $("mu");
+const UEl      = $("U");
+const LEl      = $("L");
+const ypEl     = $("ypTarget");
+const growthEl = $("growth");
+const dyEl     = $("dyInput");
+
+let lastState = null;
+
+/* ------------------------------------------------------------------ */
+/*  Olaylar                                                            */
+/* ------------------------------------------------------------------ */
+fluidSel.addEventListener("change", () => {
+  const f = FLUIDS[fluidSel.value];
+  if (f) {
+    rhoEl.value = f.rho;
+    muEl.value  = f.mu;
+  }
+  compute();
+});
+
+[rhoEl, muEl, UEl, LEl, ypEl, growthEl, dyEl].forEach(el =>
+  el.addEventListener("input", () => {
+    if ([rhoEl, muEl].includes(el)) fluidSel.value = "custom";
+    compute();
+  })
+);
+
+window.addEventListener("resize", () => { if (lastState) drawPlot(lastState); });
+
+/* ------------------------------------------------------------------ */
+/*  Ana hesap                                                          */
+/* ------------------------------------------------------------------ */
+function compute() {
+  const rho = parseFloat(rhoEl.value);
+  const mu  = parseFloat(muEl.value);
+  const U   = parseFloat(UEl.value);
+  const L   = parseFloat(LEl.value);
+  const ypTarget = parseFloat(ypEl.value);
+  const r   = parseFloat(growthEl.value);
+  const dyIn = parseFloat(dyEl.value);
+
+  const nu = (rho > 0 && mu > 0) ? mu / rho : NaN;
+  $("nuOut").textContent = isFinite(nu) ? fmtNum(nu) + " m²/s" : "—";
+
+  if (!(rho > 0 && mu > 0 && U > 0 && L > 0 && isFinite(nu))) {
+    lastState = null;
+    return;
+  }
+
+  /* --- Reynolds --- */
+  const ReL = rho * U * L / mu;
+  const turbulent = ReL >= RE_CRIT;
+
+  /* --- Sınır tabakası büyüklükleri (lokal, x = L) --- */
+  let CfLoc, CfAvg, delta, dstar, theta;
+
+  if (!turbulent) {
+    const s = Math.sqrt(ReL);
+    CfLoc = 0.664 / s;
+    CfAvg = 1.328 / s;
+    delta = 5.0   * L / s;
+    dstar = 1.721 * L / s;
+    theta = 0.664 * L / s;
+  } else {
+    const p = Math.pow(ReL, 0.2);
+    CfLoc = 0.0592 / p;
+    CfAvg = 0.074 / p - 1742 / ReL;          // geçiş düzeltmeli ortalama
+    if (!(CfAvg > 0)) CfAvg = 0.074 / p;
+    delta = 0.37  * L / p;
+    dstar = 0.046 * L / p;
+    theta = 0.036 * L / p;
+  }
+
+  const H    = dstar / theta;
+  const tauw = CfLoc * 0.5 * rho * U * U;
+  const utau = Math.sqrt(tauw / rho);
+
+  /* --- İlk hücre yüksekliği --- */
+  const dyTarget  = (ypTarget > 0 && utau > 0) ? ypTarget * nu / utau : NaN;
+  const ypFromDy  = (dyIn > 0 && utau > 0)     ? dyIn * utau / nu      : NaN;
+
+  /* --- Prizmatik katman --- */
+  let nLayers = 0, totalH = NaN, lastH = NaN, cover = NaN;
+  if (r > 1 && isFinite(dyTarget) && dyTarget > 0) {
+    nLayers = Math.ceil(Math.log(1 + delta * (r - 1) / dyTarget) / Math.log(r));
+    nLayers = Math.max(1, Math.min(nLayers, 500));
+    totalH  = dyTarget * (Math.pow(r, nLayers) - 1) / (r - 1);
+    lastH   = dyTarget * Math.pow(r, nLayers - 1);
+    cover   = totalH / delta;
+  }
+
+  /* --- Geçiş konumu --- */
+  const xTr = RE_CRIT * nu / U;
+
+  /* ------------------------------------------------------------------ */
+  /*  Yazdırma                                                           */
+  /* ------------------------------------------------------------------ */
+  $("reOut").textContent    = fmtNum(ReL, 4);
+  $("regimeOut").textContent = turbulent ? "Türbülanslı" : "Laminar";
+  $("xtrOut").textContent   = (xTr > 0 && xTr < L)
+      ? fmtLen(xTr) + "  (" + (100 * xTr / L).toFixed(1) + " %L)"
+      : (xTr >= L ? "L içinde geçiş yok" : "—");
+
+  $("deltaOut").textContent = fmtLen(delta);
+  $("dstarOut").textContent = fmtLen(dstar);
+  $("thetaOut").textContent = fmtLen(theta);
+  $("hOut").textContent     = isFinite(H) ? H.toFixed(3) : "—";
+  $("cflOut").textContent   = fmtNum(CfLoc);
+  $("cfaOut").textContent   = fmtNum(CfAvg);
+  $("tauOut").textContent   = fmtNum(tauw) + " Pa";
+  $("utauOut").textContent  = fmtNum(utau) + " m/s";
+
+  $("ypOut").textContent    = isFinite(ypTarget) ? String(ypTarget) : "—";
+  $("dyOut").textContent    = fmtLen(dyTarget);
+  $("ypFromDy").textContent = isFinite(ypFromDy) ? fmtNum(ypFromDy, 4) : "—";
+  $("nLayersOut").textContent = nLayers ? nLayers + " katman" : "—";
+  $("totOut").textContent   = fmtLen(totalH);
+  $("lastOut").textContent  = fmtLen(lastH);
+  $("coverOut").textContent = isFinite(cover) ? (cover * 100).toFixed(0) + " % δ" : "—";
+
+  /* --- Durum rozeti --- */
+  const pill = $("statusPill");
+  const note = $("statusNote");
+  let cls = "", txt = "", msg = "";
+
+  if (!isFinite(ypTarget) || ypTarget <= 0) {
+    cls = "warn"; txt = "Geçersiz y+"; msg = "Pozitif bir hedef y+ değeri girin.";
+  } else if (ypTarget <= 1) {
+    cls = "ok"; txt = "Duvar çözünürlüklü (y+ ≤ 1)";
+    msg = "DNS / wall-resolved LES veya düşük-Re türbülans modelleri (k-ω SST düşük-Re formu) için uygundur. İlk katman viskoz alt tabakanın içindedir.";
+  } else if (ypTarget <= 5) {
+    cls = "warn"; txt = "Geçiş bölgesi (1 < y+ ≤ 5)";
+    msg = "Viskoz alt tabaka ile buffer katmanı arası. Duvar fonksiyonları burada geçersiz, düşük-Re çözünürlük için de fazla kaba. 1'in altına veya 30'un üstüne çıkmanız önerilir.";
+  } else if (ypTarget < 30) {
+    cls = "warn"; txt = "Buffer katman (5 < y+ < 30)";
+    msg = "Kaçınılması gereken bölge. Ne duvar fonksiyonu ne de duvar çözünürlüklü yaklaşım doğru sonuç verir. Modelinizi gözden geçirin.";
+  } else if (ypTarget <= 300) {
+    cls = ""; txt = "Duvar fonksiyonu (30 ≤ y+ ≤ 300)";
+    msg = "Standart k-ε, realizable k-ε veya k-ω SST duvar fonksiyonlu modlar için uygundur. İlk düğüm logaritmik bölgede olmalıdır (ideali y+ ≈ 30–100).";
+  } else {
+    cls = "warn"; txt = "Çok kaba ağ (y+ > 300)";
+    msg = "Duvar fonksiyonu için bile fazla kaba. Duvar kayma gerilmesi ve ısı transferi tahminleri güvenilmez olur.";
+  }
+  pill.className = "pill " + cls;
+  pill.textContent = txt;
+  note.textContent = msg;
+
+  /* --- y+ tablosu --- */
+  buildTable(utau, nu, ypTarget);
+
+  /* --- Grafik --- */
+  lastState = { L, nu, U, ReL, turbulent, delta };
+  drawPlot(lastState);
+}
+
+/* ------------------------------------------------------------------ */
+/*  y+ tablosu                                                         */
+/* ------------------------------------------------------------------ */
+const YP_ROWS = [
+  [0.5, "DNS / wall-resolved LES"],
+  [1,   "Düşük-Re modeller (SST, Spalart-Allmaras)"],
+  [5,   "Alt sınır — düşük-Re için sınırda"],
+  [30,  "Duvar fonksiyonu alt sınırı"],
+  [50,  "Duvar fonksiyonu — önerilen"],
+  [100, "Duvar fonksiyonu — önerilen"],
+  [200, "Duvar fonksiyonu üst sınırı"],
+  [300, "Duvar fonksiyonu — kabul edilebilir üst sınır"]
+];
+
+function buildTable(utau, nu, target) {
+  const tb = $("ypTable");
+  if (!isFinite(utau) || utau <= 0 || !isFinite(nu)) { tb.innerHTML = ""; return; }
+  tb.innerHTML = YP_ROWS.map(([yp, use]) => {
+    const dy = yp * nu / utau;
+    const active = Math.abs(yp - target) < 1e-9 ? ' class="active"' : "";
+    return `<tr${active}><td>${yp}</td><td>${fmtLen(dy)}</td><td>${use}</td></tr>`;
+  }).join("");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Grafik                                                             */
+/* ------------------------------------------------------------------ */
+function drawPlot(s) {
+  const c = $("plot");
+  if (!c) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = c.clientWidth || 640;
+  const H = c.clientHeight || 300;
+
+  c.width  = Math.round(W * dpr);
+  c.height = Math.round(H * dpr);
+  const ctx = c.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { l: 62, r: 18, t: 18, b: 38 };
+  const pw = W - pad.l - pad.r;
+  const ph = H - pad.t - pad.b;
+  if (pw <= 20 || ph <= 20) return;
+
+  const N = 240;
+  const xs = [], lam = [], turb = [];
+  let maxD = 0;
+
+  for (let i = 1; i <= N; i++) {
+    const x = s.L * i / N;
+    const Rex = Math.max(s.U * x / s.nu, 1e-6);
+    const dl = 5.0   * x / Math.sqrt(Rex);
+    const dt = 0.37  * x / Math.pow(Rex, 0.2);
+    xs.push(x); lam.push(dl); turb.push(dt);
+    maxD = Math.max(maxD, dl, dt);
+  }
+  if (!(maxD > 0)) return;
+
+  const unit = maxD < 0.01 ? { f: 1e6, s: "µm" } : { f: 1e3, s: "mm" };
+  const yMax = maxD * 1.08;
+
+  const px = x => pad.l + (x / s.L) * pw;
+  const py = d => pad.t + ph - (d / yMax) * ph;
+
+  /* --- Izgara --- */
+  ctx.strokeStyle = "rgba(148,163,184,.14)";
+  ctx.lineWidth = 1;
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.fillStyle = "#94a3b8";
+
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 5; i++) {
+    const v = yMax * i / 5;
+    const y = py(v);
+    ctx.beginPath();
+    ctx.moveTo(pad.l, y);
+    ctx.lineTo(pad.l + pw, y);
+    ctx.stroke();
+    ctx.fillText((v * unit.f).toPrecision(3), pad.l - 10, y);
+  }
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (let i = 0; i <= 5; i++) {
+    const v = s.L * i / 5;
+    const x = px(v);
+    ctx.beginPath();
+    ctx.moveTo(x, pad.t);
+    ctx.lineTo(x, pad.t + ph);
+    ctx.stroke();
+    ctx.fillText(v.toPrecision(3), x, pad.t + ph + 8);
+  }
+
+  /* --- Eksenler --- */
+  ctx.strokeStyle = "#475569";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(pad.l, pad.t);
+  ctx.lineTo(pad.l, pad.t + ph);
+  ctx.lineTo(pad.l + pw, pad.t + ph);
+  ctx.stroke();
+
+  /* --- Eksen etiketleri --- */
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillText("x  (m)", pad.l + pw / 2, H - 4);
+
+  ctx.save();
+  ctx.translate(14, pad.t + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("δ  (" + unit.s + ")", 0, 0);
+  ctx.restore();
+
+  /* --- Eğriler --- */
+  const drawCurve = (arr, color, dash, width) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash(dash);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineJoin = "round";
+    for (let i = 0; i < xs.length; i++) {
+      const X = px(xs[i]);
+      const Y = py(arr[i] * unit.f / unit.f);
+      i === 0 ? ctx.moveTo(X, py(arr[i])) : ctx.lineTo(X, py(arr[i]));
+    }
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  drawCurve(turb, "#38bdf8", [], 2.2);          // türbülanslı
+  drawCurve(lam,  "#94a3b8", [5, 4], 1.6);      // laminar
+
+  /* --- Geçiş işareti --- */
+  const xTr = RE_CRIT * s.nu / s.U;
+  if (xTr > 0 && xTr < s.L) {
+    const X = px(xTr);
+    ctx.save();
+    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = "rgba(251,191,36,.65)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(X, pad.t);
+    ctx.lineTo(X, pad.t + ph);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = "#fbbf24";
+    ctx.font = "11px system-ui, sans-serif";
+    ctx.textAlign = X > pad.l + pw - 60 ? "right" : "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("geçiş", X + (X > pad.l + pw - 60 ? -6 : 6), pad.t + 4);
+  }
+
+  /* --- Çalışma noktası --- */
+  const dOp = s.turbulent ? turb[turb.length - 1] : lam[lam.length - 1];
+  const X = px(s.L), Y = py(dOp);
+  ctx.beginPath();
+  ctx.arc(X, Y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = s.turbulent ? "#38bdf8" : "#94a3b8";
+  ctx.fill();
+  ctx.strokeStyle = "#0f172a";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  /* --- Lejant --- */
+  const lx = pad.l + pw - 150, ly = pad.t + 8;
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+
+  ctx.strokeStyle = "#38bdf8";
+  ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 22, ly); ctx.stroke();
+  ctx.fillStyle = "#94a3b8";
+  ctx.fillText("Türbülanslı", lx + 30, ly);
+
+  ctx.save();
+  ctx.setLineDash([5, 4]);
+  ctx.strokeStyle = "#94a3b8";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(lx, ly + 16); ctx.lineTo(lx + 22, ly + 16); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = "#94a3b8";
+  ctx.fillText("Laminar", lx + 30, ly + 16);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Başlangıç                                                          */
+/* ------------------------------------------------------------------ */
+compute();
+</script>
+</body>
+</html>
